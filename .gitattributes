@@ -1,0 +1,3 @@
+# บังคับ LF ไม่ให้ markdown ถูก checkout เป็น CRLF บน Windows
+* text=auto eol=lf
+*.md text eol=lf
