@@ -1,36 +1,67 @@
 # orchestra-skills
 
-Skill สำหรับสั่งงาน **claude-orchestrator** — control plane ที่รัน Claude Code
-ข้ามหลาย account พร้อมกัน มีคิว มีบอร์ดสด และมี `PreToolUse` gate ที่ค้าง tool call
-ไว้รอคนตอบ
+Skill สำหรับสั่งงาน **claude-orchestrator** — control plane ที่รัน Claude Code ข้ามหลาย account
+พร้อมกัน มีคิว มีบอร์ดสด และมี `PreToolUse` gate ที่ค้าง tool call ไว้รอคนตอบ
+
+เนื้อหาทั้งหมดมาจากการวัดของจริงบน server ที่รันอยู่ ไม่ได้เขียนจาก README ของ orchestrator
 
 ```
-skills/
-  orchestra/SKILL.md    # dispatch, เลือก pool, เขียน prompt, fan-out, worktree, ดักบั๊กที่เคยเจอ
+skills/orchestra/
+  SKILL.md            # ตัว skill — ความรู้ที่ใช้ได้ทุกเครื่อง
+  MACHINE.example.md  # เทมเพลตค่าเฉพาะเครื่อง
+  MACHINE.local.md    # ← คุณสร้างเอง, gitignored, ไม่ข้ามเครื่อง
 ```
+
+## ทำไมถึงแยกเป็นสองไฟล์
+
+ตอนแรก skill นี้ hardcode ค่าของเครื่องที่เขียนมันไว้ทั้งเล่ม — path orchestrator, เวอร์ชัน Node,
+ชื่อ pool, ชื่อ worktree, port ที่ต่อ production ลงเครื่องอื่นแล้วพังเงียบๆ เพราะทุกค่าดู "น่าเชื่อ"
+แต่ผิดหมด
+
+ตอนนี้ `SKILL.md` ไม่มีค่าเฉพาะเครื่องเหลือเลย มีแต่ **§0 บอกวิธีหาค่าเหล่านั้นเอง** แล้วอ่านผลจาก
+`MACHINE.local.md` ที่แต่ละเครื่องเขียนของตัวเอง
+
+⚠ **อย่าก๊อป `MACHINE.local.md` ข้ามเครื่อง** — ชื่อ pool, layout worktree, และ port production
+คือค่าที่ "ผิดแต่ดูเหมือนถูก" ที่สุดเวลาย้ายเครื่อง เป็นคลาสของ error ที่ทำให้ dispatch ยิงผิด repo
+หรือ prompt ลืมบอกว่ามี database จริงต่ออยู่
 
 ## ติดตั้ง
 
-Claude Code โหลด skill จาก `~/.claude/skills/<name>/SKILL.md` — ทำ junction ชี้กลับมาที่ repo นี้
-เพื่อให้ repo เป็นตัวจริงตัวเดียว (แบบเดียวกับ `nohell-skill`)
+### 1. link เข้า `~/.claude/skills/`
 
 ```powershell
 # Windows (cmd) — ต้องไม่มี ~/.claude/skills/orchestra อยู่ก่อน
-mklink /J "%USERPROFILE%\.claude\skills\orchestra" "%USERPROFILE%\Desktop\orchestra-skills\skills\orchestra"
+mklink /J "%USERPROFILE%\.claude\skills\orchestra" "<repo>\skills\orchestra"
 ```
 
 ```bash
 # macOS / Linux
-ln -s ~/Desktop/orchestra-skills/skills/orchestra ~/.claude/skills/orchestra
+ln -s <repo>/skills/orchestra ~/.claude/skills/orchestra
 ```
 
-เรียกใช้ด้วย `/orchestra` หรือปล่อยให้ Claude โหลดเองเมื่อเจองานที่ต้องกระจายข้าม account
+### 2. เขียนค่าของเครื่องนี้
 
-## ข้อจำกัดที่ต้องรู้ก่อนเอาไปใช้เครื่องอื่น
+```bash
+cp skills/orchestra/MACHINE.example.md skills/orchestra/MACHINE.local.md
+```
 
-SKILL.md เล่มนี้ **ไม่ portable** — มัน hardcode ค่าของเครื่องที่เขียนไว้: path ของโฟลเดอร์
-orchestrator บน Desktop, Node v26.7.0, ชื่อ pool (`team1`, `team2`, `account_c`…`account_f`,
-`scratch`) และ worktree ชุด `C:/mm-*` ทั้งเล่มเขียนจากการวัดของจริงบนเครื่องนั้น ไม่ได้เขียนจาก README
-ย้ายเครื่องเมื่อไหร่ต้องไล่แก้ path กับชื่อ pool ก่อน
+แล้วกรอกโดย **วัดเอง** ไม่ใช่ก๊อปจากเครื่องอื่น:
 
-ไม่มี token หรือ secret อยู่ในไฟล์ — `ORCHESTRATOR_TOKEN` ถูกอ่านจาก `.env` ของ orchestrator ตอนรัน
+| ช่อง | หาจาก |
+|---|---|
+| `$ORCH` | โฟลเดอร์ที่มี `.env` ซึ่งนิยาม `ORCHESTRATOR_TOKEN` |
+| `$NODE` | เวอร์ชันที่ ABI ตรงกับ `better-sqlite3` — เลขในข้อความ error คือเลขที่ต้องการ |
+| pools | `GET /pools` เท่านั้น อย่าเดา |
+| verify command | script ของ repo เป้าหมายเอง |
+| production hazard | port/tunnel/connection string ที่ห้ามแตะ |
+
+ถ้าเครื่องนั้นไม่มี orchestrator ก็จบแค่นั้น — skill นี้เป็น client ไม่ได้ติดตั้ง server ให้
+
+### 3. ใช้งาน
+
+พิมพ์ `/orchestra` หรือปล่อยให้ Claude โหลดเองเมื่อเจองานที่ต้องกระจายข้าม account
+
+## ความปลอดภัย
+
+ไม่มี token หรือ secret ใน repo นี้ — `ORCHESTRATOR_TOKEN` ถูกอ่านจาก `.env` ของ orchestrator
+ตอนรัน และ `MACHINE.local.md` ก็ไม่ควรมี token เช่นกัน (`.gitignore` กัน `*.local.md` ไว้แล้ว)
